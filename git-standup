@@ -26,6 +26,7 @@ Usage:
   -B      - List commits before this date
   -R      - Display the author date instead of the committer date
   -e      - Show commit description (body) in output
+  -p      - Print compact commit messages
 
   Examples:
   git standup -a "John Doe" -w "MON-FRI" -m 3
@@ -58,9 +59,9 @@ function colored() {
   if [[ ${option_e:=} ]]; then
     GIT_PRETTY_FORMAT="$GIT_PRETTY_FORMAT%n%b"
   fi
+
 }
 
-# Sets up the uncolored output
 function uncolored() {
   # shellcheck disable=SC2034
   RED=""
@@ -90,6 +91,7 @@ function uncolored() {
   if [[ ${option_e:=} ]]; then
     GIT_PRETTY_FORMAT="$GIT_PRETTY_FORMAT%n%b"
   fi
+
 }
 
 function writeFile() {
@@ -105,7 +107,25 @@ function runStandup() {
 
   {
     # shellcheck disable=SC2086
-    GITOUT=$(eval ${GIT_LOG_COMMAND} 2> /dev/null)
+    if [[ ${option_p:=} ]]; then
+      GITOUT=$(eval ${GIT_LOG_COMMAND} 2> /dev/null | perl -ne '
+            # Skip git-svn-id lines
+            next if /^git-svn-id:/;
+            # Remove ANSI color codes
+            s/\e\[[0-9;]*m//g;
+            # Remove hash and " - "
+            s/^[a-f0-9]+\s+-\s+//;
+            # Remove conventional commit prefixes
+            s/^(feat|fix|chore|style|refactor|docs|test):\s*//i;
+            # Remove (time) <author> at the end
+            s/\s*\([^)]+\)\s*<[^>]+>\s*$//;
+            # Remove GPG signature info if present
+            s/\s+gpg:\s*[GN]\s*$//;
+            print $_ if /\S/;
+        ')
+    else
+      GITOUT=$(eval ${GIT_LOG_COMMAND} 2> /dev/null)
+    fi
   } || {
     GITOUT=""
   }
@@ -143,9 +163,9 @@ function runStandup() {
   fi
 }
 
-while getopts "hgfsd:u:a:w:m:D:A:B:LrcRFb:e" opt; do
+while getopts "hgfsd:u:a:w:m:D:A:B:LrcRFb:ep" opt; do
   case $opt in
-    h | d | u | a | w | m | g | D | f | s | L | r | A | B | c | R | F | b | e)
+    h | d | u | a | w | m | g | D | f | s | L | r | A | B | c | R | F | b | e | p)
       declare "option_$opt=${OPTARG:-0}"
       ;;
     \?)
