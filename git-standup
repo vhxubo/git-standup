@@ -25,8 +25,9 @@ Usage:
   -A      - List commits after this date
   -B      - List commits before this date
   -R      - Display the author date instead of the committer date
+  -e      - Show commit description (body) in output
 
-Examples:
+  Examples:
   git standup -a "John Doe" -w "MON-FRI" -m 3
 EOS
 }
@@ -51,6 +52,11 @@ function colored() {
 
   if [[ ${option_g:=} ]]; then
     GIT_PRETTY_FORMAT="$GIT_PRETTY_FORMAT %C(yellow)gpg: %G?%Creset"
+  fi
+
+  # Add commit description if -e option is set
+  if [[ ${option_e:=} ]]; then
+    GIT_PRETTY_FORMAT="$GIT_PRETTY_FORMAT%n%b"
   fi
 }
 
@@ -79,6 +85,11 @@ function uncolored() {
   else
     GIT_PRETTY_FORMAT="$GIT_PRETTY_FORMAT \n"
   fi
+
+  # Add commit description if -e option is set
+  if [[ ${option_e:=} ]]; then
+    GIT_PRETTY_FORMAT="$GIT_PRETTY_FORMAT%n%b"
+  fi
 }
 
 function writeFile() {
@@ -98,6 +109,14 @@ function runStandup() {
   } || {
     GITOUT=""
   }
+
+  # Post-process output for -e option
+  if [[ -n "$GITOUT" ]]; then
+    if [[ ${option_e:=} ]]; then
+      # -e option: show body but filter out git-svn-id
+      GITOUT=$(echo "$GITOUT" | sed '/^git-svn-id:/d')
+    fi
+  fi
 
   # If `r` option was given then no output, just write the report
   if [[ -n ${option_r:=} ]]; then
@@ -124,9 +143,9 @@ function runStandup() {
   fi
 }
 
-while getopts "hgfsd:u:a:w:m:D:A:B:LrcRFb:" opt; do
+while getopts "hgfsd:u:a:w:m:D:A:B:LrcRFb:e" opt; do
   case $opt in
-    h | d | u | a | w | m | g | D | f | s | L | r | A | B | c | R | F | b)
+    h | d | u | a | w | m | g | D | f | s | L | r | A | B | c | R | F | b | e)
       declare "option_$opt=${OPTARG:-0}"
       ;;
     \?)
